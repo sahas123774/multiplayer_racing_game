@@ -1,11 +1,11 @@
 # 🏎️ VelocityX – Real-Time Multiplayer Racing Game
 
-**VelocityX** is a real-time multiplayer racing game built using React, Phaser, Node.js, Express, and Socket.IO. Players can create private rooms, invite friends, select racing tracks, and compete against each other in synchronized multiplayer races.
+**VelocityX** is a real-time multiplayer racing game built using React, Phaser 3, Node.js, Express.js, and Socket.IO. Players can create private rooms, invite friends, select racing tracks, and compete against each other in synchronized multiplayer races.
 
 ## 🚀 Features
 
 - **Real-Time Multiplayer:** Play with multiple players using Socket.IO.
-- **Room Management:** Create and join racing rooms using room codes.
+- **Room Management:** Create and join racing rooms using unique room codes.
 - **Multiple Racing Tracks:** Four unique maps — Grand Prix, Triangle, Figure Eight, and Snake.
 - **Real-Time Physics:** Server-authoritative movement, acceleration, braking, and steering.
 - **Collision Detection:** Track boundary and car-to-car collision handling.
@@ -15,6 +15,7 @@
 - **Rematch System:** Host can initiate another race.
 - **Custom Car Graphics:** Detailed top-down sports car designs.
 - **Minimap:** Track overview and navigation assistance.
+- **Turn Direction Indicator:** Helps players understand upcoming track directions.
 
 ## 🛠️ Tech Stack
 
@@ -29,12 +30,12 @@
 
 ## 🏗️ Architecture
 
-VelocityX uses a client-server architecture.
+VelocityX uses a client-server architecture with server-authoritative game logic.
 
 1. Players connect to the backend using Socket.IO.
 2. The server manages rooms, players, and race states.
-3. Player inputs are processed by the server.
-4. Server-side physics updates player positions and rotations.
+3. Player inputs are sent to the server.
+4. Server-side physics updates player positions, rotations, and movement.
 5. Updated race states are broadcast to connected players.
 6. Phaser renders the synchronized game state in each browser.
 
@@ -43,7 +44,7 @@ The server-authoritative architecture helps maintain consistent gameplay across 
 ## 📁 Project Structure
 
 ```text
-VelocityX/
+multiplayer_racing_game/
 │
 ├── client/
 │   ├── src/
@@ -65,16 +66,25 @@ VelocityX/
 │   ├── gameLogic.js
 │   └── package.json
 │
+├── .gitignore
 └── README.md
 ```
 
 ## ⚙️ Installation and Setup
 
+### Prerequisites
+
+Make sure you have installed:
+
+- Node.js
+- npm
+- Git
+
 ### 1. Clone the repository
 
 ```bash
-git clone YOUR_GITHUB_REPOSITORY_URL
-cd VelocityX
+git clone https://github.com/sahas123774/multiplayer_racing_game.git
+cd multiplayer_racing_game
 ```
 
 ### 2. Install backend dependencies
@@ -90,11 +100,11 @@ npm install
 node index.js
 ```
 
-The backend runs on port `5000`.
+The backend server runs on port `5000`.
 
 ### 4. Install frontend dependencies
 
-Open another terminal:
+Open a new terminal from the project root:
 
 ```bash
 cd client
@@ -113,6 +123,8 @@ Open the local URL displayed by Vite, usually:
 http://localhost:5173
 ```
 
+You can open the game in multiple browser windows to test multiplayer functionality.
+
 ## 🎮 Controls
 
 | Key | Action |
@@ -122,23 +134,51 @@ http://localhost:5173
 | A / ← | Steer Left |
 | D / → | Steer Right |
 
-## 🏁 Game Modes and Maps
+## 🏁 Available Racing Maps
 
-- Grand Prix
-- Triangle Circuit
-- Figure Eight
-- Snake Circuit
+### 1. Grand Prix
+A technical racing circuit with multiple turns and straights.
+
+### 2. Triangle Circuit
+A triangular racing track designed for challenging cornering.
+
+### 3. Figure Eight
+A figure-eight circuit with intersecting racing paths.
+
+### 4. Snake Circuit
+A winding circuit with multiple consecutive turns.
 
 Players compete to complete three laps before their opponents.
+
+## 🔄 Multiplayer Gameplay Flow
+
+1. A player creates a racing room.
+2. Other players join using the room code.
+3. The host selects the racing map.
+4. The host starts the race.
+5. All players receive a synchronized countdown.
+6. Players race against each other for three laps.
+7. The server identifies the winner.
+8. The host can start a rematch.
 
 ## 🔮 Future Improvements
 
 Potential future enhancements include:
+
 - Additional racing circuits.
 - More car models and customization.
-- Advanced racing effects.
-- Persistent player statistics and leaderboards.
+- Advanced racing effects and animations.
+- Persistent player statistics.
+- Global leaderboards.
+- Improved matchmaking.
+- Sound effects and background music.
 
 ## 👨‍💻 Developed With
 
-Built as a full-stack multiplayer game development project, combining frontend development, real-time networking, game physics, and interactive 2D rendering.
+**VelocityX** was developed as a full-stack multiplayer game development project, combining frontend development, real-time networking, game physics, and interactive 2D rendering.
+
+**Repository:** [multiplayer_racing_game](https://github.com/sahas123774/multiplayer_racing_game)
+
+---
+
+⭐ If you like this project, consider giving the repository a star!
