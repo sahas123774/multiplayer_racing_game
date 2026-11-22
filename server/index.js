@@ -23,6 +23,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
     "http://localhost:5173",
+    "https://multiplayer-racing-game-kappa.vercel.app",
     "https://multiplayer-racing-game-p316o30jr-sahas123774s-projects.vercel.app"
 ];
 
