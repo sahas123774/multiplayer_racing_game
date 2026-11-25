@@ -388,6 +388,8 @@ function resolveCarCollisions(players, mapId) {
     const COLLISION_RADIUS = 18;
     const COLLISION_DISTANCE = COLLISION_RADIUS * 2;
 
+    const collisions = [];
+
     for (let i = 0; i < players.length; i++) {
         for (let j = i + 1; j < players.length; j++) {
             const carA = players[i];
@@ -451,8 +453,15 @@ function resolveCarCollisions(players, mapId) {
 
             carA.speed *= 0.7;
             carB.speed *= 0.7;
+
+            // Record the two players involved in this collision.
+            if (carA.id && carB.id) {
+                collisions.push([carA.id, carB.id]);
+            }
         }
     }
+
+    return collisions;
 }
 
 module.exports = {

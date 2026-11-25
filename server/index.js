@@ -260,6 +260,8 @@ io.on("connection", socket => {
 
         initializeRace(room);
 
+        room.activeCollisions = new Set();
+
         if (isRematch) {
             io.to(room.roomCode).emit("rematch-starting");
         }
@@ -375,10 +377,34 @@ setInterval(() => {
             );
         });
 
-        resolveCarCollisions(
-            room.players,
-            room.selectedMap
-        );
+        // Detect car-to-car collisions.
+const collisions = resolveCarCollisions(
+    room.players,
+    room.selectedMap
+);
+
+// Track collisions so sounds don't repeat every physics tick.
+if (!room.activeCollisions) {
+    room.activeCollisions = new Set();
+}
+
+const currentCollisions = new Set();
+
+collisions.forEach(([playerA, playerB]) => {
+    const collisionKey = [playerA, playerB]
+        .sort()
+        .join("-");
+
+    currentCollisions.add(collisionKey);
+
+    // Emit only when a new collision begins.
+    if (!room.activeCollisions.has(collisionKey)) {
+        io.to(playerA).emit("car-collision");
+        io.to(playerB).emit("car-collision");
+    }
+});
+
+room.activeCollisions = currentCollisions;
 
         const winner = room.players.find(
             player => player.lap >= TOTAL_LAPS

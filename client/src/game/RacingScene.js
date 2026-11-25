@@ -17,6 +17,14 @@ export default class RacingScene extends Phaser.Scene {
         this.track = getTrack(this.mapId);
     }
 
+    // =====================================
+    // LOAD AUDIO
+    // =====================================
+
+    preload() {
+        this.load.audio("engine", "/sounds/engine.mp3");
+    }
+
     create() {
         // Create selected circuit.
         createTrack(this, this.mapId);
@@ -85,7 +93,10 @@ export default class RacingScene extends Phaser.Scene {
             );
         });
 
-        // Keyboard controls.
+        // =====================================
+        // KEYBOARD CONTROLS
+        // =====================================
+
         this.keys = this.input.keyboard.addKeys({
             up: "UP",
             down: "DOWN",
@@ -97,9 +108,45 @@ export default class RacingScene extends Phaser.Scene {
             d: "D"
         });
 
+        // =====================================
+        // ENGINE SOUND
+        // =====================================
+
+        this.engineSound = this.sound.add("engine", {
+            loop: true,
+            volume: 0.3
+        });
+
+        this.audioUnlocked = false;
+        this.previousCarPosition = null;
+
+        // Unlock Phaser engine audio after user interaction.
+        this.unlockAudio = () => {
+            if (this.audioUnlocked) return;
+
+            if (this.sound.locked) {
+                this.sound.unlock();
+            }
+
+            this.audioUnlocked = true;
+        };
+
+        this.input.once(
+            "pointerdown",
+            this.unlockAudio
+        );
+
+        this.input.keyboard.once(
+            "keydown",
+            this.unlockAudio
+        );
+
         this.inputTimer = 0;
 
-        // Main HUD.
+        // =====================================
+        // MAIN HUD
+        // =====================================
+
         this.add.text(
             20,
             20,
@@ -175,7 +222,10 @@ export default class RacingScene extends Phaser.Scene {
             }
         ).setDepth(20);
 
-        // Socket listener.
+        // =====================================
+        // SOCKET EVENT LISTENERS
+        // =====================================
+
         this.handleRaceState =
             this.handleRaceState.bind(this);
 
@@ -184,15 +234,38 @@ export default class RacingScene extends Phaser.Scene {
             this.handleRaceState
         );
 
-        // Cleanup when scene shuts down.
+        // =====================================
+        // SCENE CLEANUP
+        // =====================================
+
         this.events.once(
             Phaser.Scenes.Events.SHUTDOWN,
             () => {
+                // Remove socket listener.
                 this.socket.off(
                     "race-state",
                     this.handleRaceState
                 );
 
+                // Stop engine.
+                if (this.engineSound) {
+                    this.engineSound.stop();
+                    this.engineSound.destroy();
+                    this.engineSound = null;
+                }
+
+                // Remove audio unlock listeners.
+                this.input.off(
+                    "pointerdown",
+                    this.unlockAudio
+                );
+
+                this.input.keyboard.off(
+                    "keydown",
+                    this.unlockAudio
+                );
+
+                // Reset player input.
                 this.socket.emit("player-input", {
                     up: false,
                     down: false,
@@ -205,7 +278,10 @@ export default class RacingScene extends Phaser.Scene {
         this.drawMiniMap();
     }
 
-    // Update multiplayer race state.
+    // =====================================
+    // UPDATE MULTIPLAYER RACE STATE
+    // =====================================
+
     handleRaceState(data) {
         const activePlayerIds = new Set(
             data.players.map(player => player.id)
@@ -256,21 +332,16 @@ export default class RacingScene extends Phaser.Scene {
     getFinishGate() {
         const track = this.track;
 
-        // Grand Prix special finish line.
         if (this.mapId === "grand-prix") {
             return {
                 x: 600,
                 y: 627,
-
-                // Across the road: vertical line.
                 tangentX: 0,
                 tangentY: 1,
-
                 halfWidth: track.roadWidth / 2
             };
         }
 
-        // Other maps: 85% along first segment.
         const points = track.centerLine;
 
         const start = points[0];
@@ -352,7 +423,6 @@ export default class RacingScene extends Phaser.Scene {
 
         graphics.clear();
 
-        // Background.
         graphics.fillStyle(0x101827, 0.96);
 
         graphics.fillRoundedRect(
@@ -378,7 +448,6 @@ export default class RacingScene extends Phaser.Scene {
             points[0].y
         );
 
-        // Outer track.
         graphics.lineStyle(10, 0x94a3b8, 1);
 
         graphics.beginPath();
@@ -395,7 +464,6 @@ export default class RacingScene extends Phaser.Scene {
 
         graphics.strokePath();
 
-        // Asphalt.
         graphics.lineStyle(6, 0x343a40, 1);
 
         graphics.beginPath();
@@ -412,7 +480,6 @@ export default class RacingScene extends Phaser.Scene {
 
         graphics.strokePath();
 
-        // Correct finish-line position.
         const gate = this.getFinishGate();
 
         const finishA = this.toMiniMap(
@@ -434,7 +501,6 @@ export default class RacingScene extends Phaser.Scene {
             finishB.y
         );
 
-        // Player markers.
         this.cars.forEach((car, playerId) => {
             const position = this.toMiniMap(
                 car.x,
@@ -540,6 +606,10 @@ export default class RacingScene extends Phaser.Scene {
         return angle < 0 ? "LEFT" : "RIGHT";
     }
 
+    // =====================================
+    // MAIN GAME UPDATE
+    // =====================================
+
     update(time, delta) {
         const alpha = 1 - Math.exp(-delta / 80);
 
@@ -575,11 +645,65 @@ export default class RacingScene extends Phaser.Scene {
             );
         });
 
-        // Refresh minimap.
         this.drawMiniMap();
 
-        // Upcoming turn indicator.
         const myCar = this.cars.get(this.myId);
+
+        // =====================================
+        // ENGINE SOUND
+        // =====================================
+
+        if (myCar && this.audioUnlocked) {
+            if (!this.previousCarPosition) {
+                this.previousCarPosition = {
+                    x: myCar.x,
+                    y: myCar.y
+                };
+            }
+
+            const distance = Phaser.Math.Distance.Between(
+                myCar.x,
+                myCar.y,
+                this.previousCarPosition.x,
+                this.previousCarPosition.y
+            );
+
+            const speed =
+                distance / Math.max(delta, 1) * 1000;
+
+            this.previousCarPosition = {
+                x: myCar.x,
+                y: myCar.y
+            };
+
+            const normalizedSpeed = Phaser.Math.Clamp(
+                speed / 300,
+                0,
+                1
+            );
+
+            if (normalizedSpeed > 0.02) {
+                if (!this.engineSound.isPlaying) {
+                    this.engineSound.play();
+                }
+
+                this.engineSound.setRate(
+                    0.8 + normalizedSpeed * 0.9
+                );
+
+                this.engineSound.setVolume(
+                    0.2 + normalizedSpeed * 0.45
+                );
+            } else {
+                if (this.engineSound.isPlaying) {
+                    this.engineSound.stop();
+                }
+            }
+        }
+
+        // =====================================
+        // UPCOMING TURN INDICATOR
+        // =====================================
 
         if (myCar && this.turnText) {
             const direction = this.getUpcomingTurn(
@@ -600,7 +724,10 @@ export default class RacingScene extends Phaser.Scene {
             }
         }
 
-        // Send keyboard input at 30 Hz.
+        // =====================================
+        // SEND KEYBOARD INPUT AT 30 HZ
+        // =====================================
+
         this.inputTimer += delta;
 
         if (this.inputTimer >= 1000 / 30) {

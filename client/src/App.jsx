@@ -1,3 +1,4 @@
+
 import Game from "./components/Game";
 import { useEffect, useRef, useState } from "react";
 
@@ -19,12 +20,123 @@ function App() {
 
     const countdownTimeout = useRef(null);
 
+    // =====================================
+    // RACE STATE REFERENCES
+    // =====================================
+
+    const raceActiveRef = useRef(false);
+    const victoryPlayedRef = useRef(false);
+    const leavingRoomRef = useRef(false);
+
+    // =====================================
+    // AUDIO REFERENCES
+    // =====================================
+
+    const soundsRef = useRef({});
+    const audioUnlockedRef = useRef(false);
+
+    // Initialize audio files once.
     useEffect(() => {
+        soundsRef.current = {
+            countdown: new Audio("/sounds/countdown.mp3"),
+            collision: new Audio("/sounds/collision.mp3"),
+            victory: new Audio("/sounds/victory.mp3")
+        };
+
+        soundsRef.current.countdown.volume = 0.7;
+        soundsRef.current.collision.volume = 0.7;
+        soundsRef.current.victory.volume = 0.8;
+
+        return () => {
+            Object.values(soundsRef.current).forEach(audio => {
+                audio.pause();
+                audio.currentTime = 0;
+            });
+
+            soundsRef.current = {};
+        };
+    }, []);
+
+    // =====================================
+    // AUDIO UNLOCK
+    // =====================================
+
+    function unlockAudio() {
+        if (audioUnlockedRef.current) return;
+
+        const sounds = Object.values(soundsRef.current);
+
+        if (sounds.length === 0) return;
+
+        audioUnlockedRef.current = true;
+
+        sounds.forEach(audio => {
+            audio.muted = true;
+
+            const promise = audio.play();
+
+            if (promise) {
+                promise.then(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.muted = false;
+                }).catch(error => {
+                    audio.muted = false;
+                    audioUnlockedRef.current = false;
+
+                    console.warn("Audio unlock failed:", error);
+                });
+            }
+        });
+    }
+
+    // =====================================
+    // PLAY SOUND
+    // =====================================
+
+    function playSound(name) {
+        const audio = soundsRef.current[name];
+
+        if (!audio || !audioUnlockedRef.current) {
+            return;
+        }
+
+        audio.pause();
+        audio.currentTime = 0;
+
+        audio.play().catch(error => {
+            console.warn(`Could not play ${name} sound:`, error);
+        });
+    }
+
+    // =====================================
+    // STOP ALL SOUND EFFECTS
+    // =====================================
+
+    function stopAllSounds() {
+        Object.values(soundsRef.current).forEach(audio => {
+            audio.pause();
+            audio.currentTime = 0;
+        });
+    }
+
+    // =====================================
+    // SOCKET EVENTS
+    // =====================================
+
+    useEffect(() => {
+
         function handleConnect() {
             setConnected(true);
         }
 
         function handleDisconnect() {
+            leavingRoomRef.current = true;
+            raceActiveRef.current = false;
+            victoryPlayedRef.current = false;
+
+            stopAllSounds();
+
             setConnected(false);
 
             setRoom(null);
@@ -38,25 +150,37 @@ function App() {
         }
 
         function handleRoomCreated(data) {
+            leavingRoomRef.current = false;
+            raceActiveRef.current = false;
+            victoryPlayedRef.current = false;
+
             setRoom({
                 ...data,
                 myId: socket.id
             });
 
             setError("");
+            setRaceStarted(false);
             setRaceFinished(false);
             setWinner(null);
+            setCountdown(null);
         }
 
         function handleRoomJoined(data) {
+            leavingRoomRef.current = false;
+            raceActiveRef.current = false;
+            victoryPlayedRef.current = false;
+
             setRoom({
                 ...data,
                 myId: socket.id
             });
 
             setError("");
+            setRaceStarted(false);
             setRaceFinished(false);
             setWinner(null);
+            setCountdown(null);
         }
 
         function handleRoomUpdated(data) {
@@ -66,24 +190,59 @@ function App() {
             }));
         }
 
+        // =====================================
+        // COUNTDOWN
+        // =====================================
+
         function handleCountdown(count) {
+            if (leavingRoomRef.current) return;
+
+            if (!raceActiveRef.current) return;
+
             setCountdown(count);
+
+            // Play exactly once for each server tick.
+            if (count === 3 || count === 2 || count === 1) {
+                playSound("countdown");
+            }
         }
 
         function handleCountdownCancelled() {
+            if (leavingRoomRef.current) return;
+
+            raceActiveRef.current = false;
+
             setCountdown(null);
             setRaceStarted(false);
 
             clearTimeout(countdownTimeout.current);
         }
 
+        // =====================================
+        // REMATCH
+        // =====================================
+
         function handleRematchStarting() {
+            if (leavingRoomRef.current) return;
+
+            raceActiveRef.current = true;
+            victoryPlayedRef.current = false;
+
             setRaceFinished(false);
             setWinner(null);
             setCountdown(3);
         }
 
+        // =====================================
+        // RACE STARTED
+        // =====================================
+
         function handleRaceStarted(data) {
+            if (leavingRoomRef.current) return;
+
+            raceActiveRef.current = true;
+            victoryPlayedRef.current = false;
+
             setRoom(previous => ({
                 ...previous,
                 ...data,
@@ -106,7 +265,31 @@ function App() {
             }, 800);
         }
 
+        // =====================================
+        // COLLISION
+        // =====================================
+
+        function handleCarCollision() {
+            if (leavingRoomRef.current) return;
+            if (!raceActiveRef.current) return;
+
+            playSound("collision");
+        }
+
+        // =====================================
+        // RACE FINISHED
+        // =====================================
+
         function handleRaceFinished(data) {
+            // Ignore delayed or duplicate events.
+            if (leavingRoomRef.current) return;
+            if (!raceActiveRef.current) return;
+            if (victoryPlayedRef.current) return;
+
+            // Mark the race finished before playing audio.
+            raceActiveRef.current = false;
+            victoryPlayedRef.current = true;
+
             console.log("Race finished!", data);
 
             setWinner(data.winner);
@@ -116,11 +299,22 @@ function App() {
             setCountdown(null);
 
             clearTimeout(countdownTimeout.current);
+
+            // Victory sound plays exactly once.
+            playSound("victory");
         }
+
+        // =====================================
+        // ROOM ERROR
+        // =====================================
 
         function handleRoomError(message) {
             setError(message);
         }
+
+        // =====================================
+        // REGISTER SOCKET LISTENERS
+        // =====================================
 
         socket.on("connect", handleConnect);
         socket.on("disconnect", handleDisconnect);
@@ -135,9 +329,14 @@ function App() {
         socket.on("rematch-starting", handleRematchStarting);
 
         socket.on("race-started", handleRaceStarted);
+        socket.on("car-collision", handleCarCollision);
         socket.on("race-finished", handleRaceFinished);
 
         socket.on("room-error", handleRoomError);
+
+        // =====================================
+        // CLEANUP
+        // =====================================
 
         return () => {
             socket.off("connect", handleConnect);
@@ -153,6 +352,7 @@ function App() {
             socket.off("rematch-starting", handleRematchStarting);
 
             socket.off("race-started", handleRaceStarted);
+            socket.off("car-collision", handleCarCollision);
             socket.off("race-finished", handleRaceFinished);
 
             socket.off("room-error", handleRoomError);
@@ -161,12 +361,28 @@ function App() {
         };
     }, []);
 
+    // =====================================
+    // CREATE ROOM
+    // =====================================
+
     function createRoom(username) {
+        unlockAudio();
+
+        leavingRoomRef.current = false;
+
         setError("");
         socket.emit("create-room", { username });
     }
 
+    // =====================================
+    // JOIN ROOM
+    // =====================================
+
     function joinRoom(username, roomCode) {
+        unlockAudio();
+
+        leavingRoomRef.current = false;
+
         setError("");
 
         socket.emit("join-room", {
@@ -174,6 +390,10 @@ function App() {
             roomCode
         });
     }
+
+    // =====================================
+    // SELECT MAP
+    // =====================================
 
     function selectMap(mapId) {
         setError("");
@@ -183,12 +403,32 @@ function App() {
         });
     }
 
+    // =====================================
+    // START RACE / REMATCH
+    // =====================================
+
     function startRace() {
+        unlockAudio();
+
+        if (leavingRoomRef.current) return;
+
         setError("");
+
         socket.emit("start-race");
     }
 
+    // =====================================
+    // LEAVE ROOM
+    // =====================================
+
     function leaveRoom() {
+        // Block all subsequent race sounds immediately.
+        leavingRoomRef.current = true;
+        raceActiveRef.current = false;
+        victoryPlayedRef.current = false;
+
+        stopAllSounds();
+
         socket.emit("leave-room");
 
         setRoom(null);
@@ -205,6 +445,10 @@ function App() {
     }
 
     const isHost = room && room.host === room.myId;
+
+    // =====================================
+    // UI
+    // =====================================
 
     return (
         <div
